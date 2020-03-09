@@ -2,6 +2,7 @@
 set -ex
 
 # an interactive script to install and setup usbguard on ubuntu
+# usbguard: https://usbguard.github.io/
 
 # install usbguard and its associated applet (for GUI control)
 sudo apt install usbguard usbguard-applet-qt
