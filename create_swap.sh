@@ -1,6 +1,8 @@
 #!/bin/bash
 set -ex
 
+# a script to create and register a swap file
+# tested on Ubuntu 19.10, should work on any linux
 fpath=$1
 size=$2
 
