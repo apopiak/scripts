@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -ex
+
+if [ $# -ne 2 ]
+  then
+    echo "usage: $0 <old version> <new version>"
+    exit 1
+fi
+
+OLDVERSION=$1
+NEWVERSION=$2
+
+sd "version = [\"']$OLDVERSION[\"']" "version = \"$NEWVERSION\"" $(fd Cargo.toml)

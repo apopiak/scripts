@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+import glob
+import sys
+import subprocess
+
+# assumes `sd` and `fd` are available in the PATH
+
+# Check if a file name was provided
+if len(sys.argv) < 2:
+    print("Usage: python3 bump_all <input_file>")
+    sys.exit(1)
+
+# Read input data from the provided file
+with open(sys.argv[1], 'r') as input_file:
+    input_data = input_file.read()
+
+# Split input into an array of lines
+lines = input_data.strip().split('\n')
+
+def cargo_files():
+    result = subprocess.run(['fd', 'Cargo.toml'], stdout=subprocess.PIPE, text=True)
+    return result.stdout.splitlines()
+
+# Loop through each line
+for line in lines:
+    # Get the name and version number
+    name, version = line.split(': ')[0].strip(), line.split(': ')[1].strip()[1:]
+
+    # Split version number into major, minor, and patch components
+    major_version, minor_version, patch_version = map(int, version.split('.'))
+
+    if "hydradx-runtime" in name or "basilisk-runtime" in name:
+        # Construct the new version number
+        new_version = f'{major_version + 1}'
+
+        # Call `sd` to replace the versions
+        subprocess.run(['sd', f'spec_version: {major_version}', f'spec_version: {new_version}'] + glob.glob('runtime/**/src/lib.rs'))
+        subprocess.run(['sd', f'version = [\'"]{major_version}', f'version = "{new_version}'] + glob.glob('runtime/**/Cargo.toml'))
+
+        print(f'New version of {name} is v{new_version}')
+    else:
+        # Bump the patch version
+        new_patch_version = patch_version + 1
+
+        # Construct the new version number
+        new_version = f'{major_version}.{minor_version}.{new_patch_version}'
+
+        # Call `sd` to replace the versions
+        subprocess.run(['sd', f'version = [\'"]{version}[\'"]', f'version = "{new_version}"'] + cargo_files())
+
+        # Print the new version number
+        print(f'New version of {name} is v{new_version}')

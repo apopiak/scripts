@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+
+import sys
+import requests
+import re
+from datetime import datetime
+
+# assumes git is available in the PATH and that it is called from a git repository that's hosted
+# on github
+
+def get_commit_date(commit_hash):
+    result = git("show", "-s", "--format=%ci", commit_hash)
+    return datetime.fromisoformat(result.strip())
+
+def git(*args):
+    from subprocess import check_output
+    return check_output(["git"] + list(args)).decode("utf-8").strip()
+
+def get_pull_requests(repo_owner, repo_name, start_date, end_date, access_token):
+    url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/pulls"
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"token {access_token}"
+    }
+    params = {
+        "state": "all",
+        "sort": "updated",
+        "direction": "desc",
+        "base": "main",
+    }
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code != 200:
+        print(f"Error: {response.status_code} - {response.text}")
+        return []
+
+    pull_requests = response.json()
+    return [pr for pr in pull_requests if pr['merged_at'] and start_date <= datetime.fromisoformat(pr["merged_at"].strip()) <= end_date]
+
+def main():
+    if sys.argv[1] == "help":
+        print('''
+list-gh-prs is a script that fetches the PRs merged between the times of the two specified commits.
+
+Usage: list-gh-prs <commit_hash1> <commit_hash2> <github_access_token>
+''')
+        sys.exit(0)
+    if len(sys.argv) != 4:
+        print("Usage: list-gh-prs <commit_hash1> <commit_hash2> <github_access_token>")
+        sys.exit(1)
+
+    commit_hash1, commit_hash2, access_token = sys.argv[1], sys.argv[2], sys.argv[3]
+
+    date1 = get_commit_date(commit_hash1)
+    date2 = get_commit_date(commit_hash2)
+
+    start_date = min(date1, date2)
+    start_hash = commit_hash1
+    end_hash = commit_hash2
+    # make sure the first hash is the start
+    if start_date != date1:
+        start_hash = commit_hash2
+        end_hash = commit_hash1
+    end_date = max(date1, date2)
+
+    repo_info = git("remote", "get-url", "origin")
+    match = re.search(r"[:/]([^/]+)/([^/]+)\.git", repo_info)
+    if match:
+        repo_owner, repo_name = match.group(1), match.group(2)
+    else:
+        print("Error: Unable to extract repository information from the remote URL.")
+        sys.exit(1)
+
+    pull_requests = get_pull_requests(repo_owner, repo_name, start_date, end_date, access_token)
+
+    if pull_requests:
+        print(f"Pull requests between {start_date} and {end_date} (between {start_hash} and {end_hash}):")
+        for pr in pull_requests:
+            print(f"#{pr['number']} - {pr['title']} - {pr['html_url']}")
+    else:
+        print(f"No pull requests found between {start_date} and {end_date} (between {start_hash} and {end_hash}).")
+
+if __name__ == "__main__":
+    main()
